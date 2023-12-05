@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ciha-enhancement"
+description = "tools for executing enhancement strategy on hearing assistive devices"
+dynamic = ["version"]
+authors = [
+    { name = "Muhammad Ammar Asyraf", email = "maasyraf.edu@gmail.com"},
+]
+classifiers = [
+    "Programming Language :: Python"
+]
+keywords = ["cochlear implant", "hearing aids", "speech enhancement"]
+requires-python = ">=3.8"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "scipy",
+    "omegaconf",
+    "hydra-core>=1.1.1",
+    "hydra-submitit-launcher>=1.1.6",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["scene_generator*"]
+exclude = ["resources*"]
+namespaces = false
+

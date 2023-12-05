@@ -1,2 +1,4 @@
 /resources
-
+*.egg-info
+*/.hydra
+*.log
