@@ -27,20 +27,14 @@ ciha_dataset
 
 ├───generated_data
 |   ├───IR_A
-|   |       ├───speaker_A
-|   |       |   |  speech_rev_1.wav
-|   |       |   |  speech_rev_2.wav
-|   |       |   | ...
-|   |       ├───speaker_B
-|   |       |   |  speech_rev_1.wav
-|   |       |   |  speech_rev_2.wav
-|   |       |   | ...
-|   |       ├───...
+|   |       ├───deg A
+|   |       |   ├───speaker_A
+|   |       |   |   | speech_rev_1.wav
+|   |       |   |   | speech_rev_2.wav
+|   |       |   |   | ...
 
 |   ├───IR_B
-|   |       ├───...
-|   |       |   |  ...
-
 |   ├───...
+
 
 ```

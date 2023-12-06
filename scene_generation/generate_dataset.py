@@ -14,7 +14,7 @@ from  omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
 
-def load_impulse_response(ir_path: str) -> tuple[np.ndarray, np.ndarray]:
+def load_impulse_response(ir_file_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     The function for load impulse response signal
     """
@@ -73,7 +73,6 @@ def create_speech_data(cfg: DictConfig) -> None:
     The main function of this script
     """
     logger.info("Creating speech dataset \n")
-    logger.info(f"Generating acoustic scene with impulse response on: {cfg.path.impulse_response_dir}")
     logger.info(f"Processing speech data from: {cfg.path.speech_dir}")
     print("Check")
 
@@ -86,8 +85,25 @@ def create_speech_data(cfg: DictConfig) -> None:
 
     # steps:
     # 1 - iteration for reverberant types
+    files = Path(cfg.path.impulse_response_dir).glob('**/*')
+    ir_files = [x for x in files if x.is_file()]
+
+    logger.info(f"Generating acoustic scene with impulse response (IR) on: {cfg.path.impulse_response_dir}")
+    logger.info(f"There are {len(ir_files)} IR files found")
+
+    for ir_data in ir_files:
+        # define ir scenes name
+        print(ir_data)
+        ir_dir = np.char.split(ir_data, sep='/')[-1]
+        print(ir_dir)
+
+        logger.info(f"Creating speech data for {ir_dir} scenes")
+
+
+        ir_left, ir_right = load_impulse_response(ir_data)
+
+
     # 2 - iteration for speech signals processing
-    ir_left, ir_right = load_impulse_response(cfg.path.impulse_response_dir)
 
 
 
