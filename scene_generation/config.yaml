@@ -3,6 +3,6 @@ path:
   speech_dir: ${path.root}/clean_speech
   impulse_response_dir: ${path.root}/impulse_response
   noise_dir: ${path.root}/noise
-  output_speech_dir: ${path.root}/generated_data
+  output_dir: ${path.root}/generated_data
 
 sample_rate: 16000

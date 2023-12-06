@@ -21,6 +21,7 @@ dependencies = [
     "omegaconf",
     "hydra-core>=1.1.1",
     "hydra-submitit-launcher>=1.1.6",
+    "python-sofa",
 ]
 
 [tool.setuptools]
