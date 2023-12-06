@@ -9,7 +9,7 @@ In this project, there are three main database which will be processed.
 
 ## Directory format
 
-'''text
+```text
 ciha_dataset
 ├───clean_speech (monoaural)
 |   ├───speaker_A
@@ -43,5 +43,4 @@ ciha_dataset
 
 |   ├───...
 
-
-'''
+```
