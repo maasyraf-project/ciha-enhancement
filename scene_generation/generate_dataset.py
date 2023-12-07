@@ -76,7 +76,6 @@ def create_speech_data(cfg: DictConfig) -> None:
     """
     logger.info("Creating speech dataset \n")
     logger.info(f"Processing speech data from: {cfg.path.speech_dir}")
-    print("Check")
 
     # check previous created data
     previous_data = check_previous_created_data(cfg.path.output_dir)
@@ -87,8 +86,8 @@ def create_speech_data(cfg: DictConfig) -> None:
 
     # steps:
     # 1 - iteration for reverberant types
-    files = Path(cfg.path.impulse_response_dir).glob('**/*')
-    ir_files = [x for x in files if x.is_file()]
+    ir_dir = Path(cfg.path.impulse_response_dir).glob('**/*')
+    ir_files = [x for x in ir_dir if x.is_file()]
 
     logger.info(f"Generating acoustic scene with impulse response (IR) on: {cfg.path.impulse_response_dir}")
     logger.info(f"There are {len(ir_files)} IR files found")
@@ -97,13 +96,13 @@ def create_speech_data(cfg: DictConfig) -> None:
         # define ir scenes name
         ir_scenes = str.split(str(ir_path), sep='/')[-1][:-14]
 
-        logger.info(f"Creating speech data for {ir_scenes} scenes")
-
         # get impulse response
         ir_left, ir_right = load_impulse_response(ir_path)
 
         ir_degree = np.linspace(-90, 90,len(ir_left))
         ir_degree_names = [ str(int(i)) for i in ir_degree]
+
+        # define which acoustic scenes that will be generated
         ir_degree_create = [
             '-90',
             "-60",
@@ -116,10 +115,29 @@ def create_speech_data(cfg: DictConfig) -> None:
             "90"
         ]
 
+        # 2 - itaration on degree
         ir_degree_idx = []
         for degree in ir_degree_create:
             index = ir_degree_names.index(degree)
             ir_degree_idx.append(index)
+
+        # speech dir and path
+        speaker_dir = Path(cfg.path.speech_dir).glob('**/*')
+        speaker_list = [x for x in speaker_dir if x.is_dir()]
+
+        for degree in ir_degree_idx:
+            for speaker in speaker_list:
+                speaker_scenes = str.split(str(speaker), sep='/')[-1]
+                scene_path = Path(cfg.path.output_dir) / ir_scenes / ir_degree_names[degree] / speaker_scenes
+                scene_path.mkdir(parents=True, exist_ok=True)
+
+                logger.info(f"Creating {ir_scenes} at {ir_degree_names[degree]} degree for {speaker_scenes}")
+
+                speech_path = Path(cfg.path.speech_dir) / speaker
+                speech_list = [x for x in speech_path.glob('**/*') if x.is_file()]
+
+        # scene_path = Path(cfg.path.output_dir) / ir_scenes / ir_degree / speaker / sample_name
+        # scene_path.mkdir(parents=True, exist_ok=True)
 
         # apply filtering to signal
         # for degree in ir_left:
