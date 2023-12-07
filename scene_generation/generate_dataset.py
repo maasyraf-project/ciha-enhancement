@@ -18,13 +18,15 @@ def load_impulse_response(ir_file_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     The function for load impulse response signal
     """
+    # check datatype
+    ir_filename = Path(ir_file_path)
+    if ir_filename.suffix != ".sofa":
+        logger.error("The impulse response data format is not a sofa files")
 
-    files = Path(ir_path).glob('**/*')
-    ir_files = [x for x in files if x.is_file()]
-    for i in ir_files:
-        print(i)
-        ir = sofa.Database.open(i)
+    # load impulse response
+    ir = sofa.Database.open(ir_filename)
 
+    # get values for impulser response for left and right channels
     ir_data = ir.Data.IR.get_values()
     ir_left = ir_data[:, 0, :]
     ir_right = ir_data[:, 0, :]
@@ -91,20 +93,41 @@ def create_speech_data(cfg: DictConfig) -> None:
     logger.info(f"Generating acoustic scene with impulse response (IR) on: {cfg.path.impulse_response_dir}")
     logger.info(f"There are {len(ir_files)} IR files found")
 
-    for ir_data in ir_files:
+    for ir_path in ir_files:
         # define ir scenes name
-        print(ir_data)
-        ir_dir = np.char.split(ir_data, sep='/')[-1]
-        print(ir_dir)
+        ir_scenes = str.split(str(ir_path), sep='/')[-1][:-14]
 
-        logger.info(f"Creating speech data for {ir_dir} scenes")
+        logger.info(f"Creating speech data for {ir_scenes} scenes")
+
+        # get impulse response
+        ir_left, ir_right = load_impulse_response(ir_path)
+
+        ir_degree = np.linspace(-90, 90,len(ir_left))
+        ir_degree_names = [ str(int(i)) for i in ir_degree]
+        ir_degree_create = [
+            '-90',
+            "-60",
+            "-45",
+            "-30",
+            "0",
+            "30",
+            "45",
+            "60",
+            "90"
+        ]
+
+        ir_degree_idx = []
+        for degree in ir_degree_create:
+            index = ir_degree_names.index(degree)
+            ir_degree_idx.append(index)
+
+        # apply filtering to signal
+        # for degree in ir_left:
 
 
-        ir_left, ir_right = load_impulse_response(ir_data)
 
 
     # 2 - iteration for speech signals processing
-
 
 
 if __name__ == "__main__":
