@@ -14,6 +14,23 @@ from  omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
 
+def load_speech_signal(speech_file_path: str) -> tuple[np.ndarray, np.ndarray]:
+    """
+    The function for loading speech signal
+    """
+    # check datatype
+    speech_filename = Path(speech_file_path)
+    if speech_file_path.suffix != ".wav":
+        logger.warning("The speech data format is not a wav files")
+
+    # load wav signal
+    speech_rate, speech_signal = wavfile.read(speech_filename)
+
+    print(speech_signal.dtype)
+
+
+    return speech_rate, speech_signal
+
 def load_impulse_response(ir_file_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     The function for load impulse response signal
@@ -33,7 +50,7 @@ def load_impulse_response(ir_file_path: str) -> tuple[np.ndarray, np.ndarray]:
 
     return ir_left, ir_right
 
-def filter_ir(signal: ndarray, hrtf_left: ndarray, hertf_right: ndarray) -> ndarray:
+def filter_ir(signal: ndarray, hrtf_left: ndarray, hertf_right: ndarray) -> np.ndarray:
     """
     The function for applying convolutive filter to get filtered (reverberant) speech signals
     """
@@ -135,6 +152,14 @@ def create_speech_data(cfg: DictConfig) -> None:
 
                 speech_path = Path(cfg.path.speech_dir) / speaker
                 speech_list = [x for x in speech_path.glob('**/*') if x.is_file()]
+
+                for speech_path in speech_list:
+                    # load signal data
+                    rate, speech = load_speech_signal(speech_path)
+                    print(speech_path)
+
+                    a = b
+
 
         # scene_path = Path(cfg.path.output_dir) / ir_scenes / ir_degree / speaker / sample_name
         # scene_path.mkdir(parents=True, exist_ok=True)
