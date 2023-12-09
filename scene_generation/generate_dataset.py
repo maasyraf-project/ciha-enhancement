@@ -130,13 +130,9 @@ def create_speech_data(cfg: DictConfig) -> None:
         # define which acoustic scenes that will be generated
         ir_degree_create = [
             '-90',
-            "-60",
             "-45",
-            "-30",
             "0",
-            "30",
             "45",
-            "60",
             "90"
         ]
 
@@ -146,19 +142,29 @@ def create_speech_data(cfg: DictConfig) -> None:
             index = ir_degree_names.index(degree)
             ir_degree_idx.append(index)
 
-        # speech dir and path
+        # 3 - iteration on speakers
         speaker_dir = Path(cfg.path.speech_dir).glob('**/*')
-        speaker_list = [x for x in speaker_dir if x.is_dir()]
+        speaker_list = [str.split(str(x), sep='/')[-1] for x in speaker_dir if x.is_dir()]
+
+        speaker_create = [
+            "fena",
+            "mmht"
+        ]
+
+        speaker_idx = []
+        for speaker in speaker_create:
+            index = speaker_list.index(speaker)
+            speaker_idx.append(index)
 
         for degree in ir_degree_idx:
-            for speaker in speaker_list:
-                speaker_scenes = str.split(str(speaker), sep='/')[-1]
+            for speaker in speaker_idx:
+                speaker_scenes = speaker_list[speaker]
                 scene_path = Path(cfg.path.output_dir) / ir_scenes / ir_degree_names[degree] / speaker_scenes
                 scene_path.mkdir(parents=True, exist_ok=True)
 
                 logger.info(f"Creating {ir_scenes} at {ir_degree_names[degree]} degree for {speaker_scenes}")
 
-                speech_path = Path(cfg.path.speech_dir) / speaker
+                speech_path = Path(cfg.path.speech_dir) / speaker_scenes
                 speech_list = [x for x in speech_path.glob('**/*') if x.is_file()]
 
                 for idx, speech_path in enumerate(speech_list, 1):
@@ -169,10 +175,10 @@ def create_speech_data(cfg: DictConfig) -> None:
                     output_path = scene_path / speech_name
 
                     if output_path in previous_samples:
-                        logger.info(f"Skipping speech number {speech_number} [{idx}/{len(speech_list)}]")
+                        logger.info(f"Skipping {ir_scenes} - {ir_degree_names[degree]} - {speaker_scenes} - speech number {speech_number} [{idx}/{len(speech_list)}]")
                         continue
 
-                    logger.info(f"Processing speech number {speech_number} [{idx}/{len(speech_list)}]")
+                    logger.info(f"Processing {ir_scenes} - {ir_degree_names[degree]} - {speaker_scenes} - speech number {speech_number} [{idx}/{len(speech_list)}]")
 
                     # load signal data
                     rate, speech = load_speech_signal(speech_path)
