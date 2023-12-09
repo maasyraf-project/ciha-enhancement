@@ -167,18 +167,26 @@ def create_speech_data(cfg: DictConfig) -> None:
                 speech_path = Path(cfg.path.speech_dir) / speaker_scenes
                 speech_list = [x for x in speech_path.glob('**/*') if x.is_file()]
 
-                for idx, speech_path in enumerate(speech_list, 1):
+                num_of_speech = 10
+                speech_create = [f"{i:04d}" for i in range(1, num_of_speech+1)]
 
+                iteration = 1
+                for idx, speech_path in enumerate(speech_list, 1):
                     # checking output data
                     speech_name = str.split(str(speech_path), sep='/')[-1]
                     speech_number = speech_name[-8:-4]
+
+                    if speech_number not in speech_create:
+                        continue
+
                     output_path = scene_path / speech_name
 
                     if output_path in previous_samples:
-                        logger.info(f"Skipping {ir_scenes} - {ir_degree_names[degree]} - {speaker_scenes} - speech number {speech_number} [{idx}/{len(speech_list)}]")
+                        logger.info(f"Skipping {ir_scenes} - {ir_degree_names[degree]} - {speaker_scenes} - speech number {speech_number} [{iteration}/{len(speech_create)}]")
+                        iteration = iteration +  1
                         continue
 
-                    logger.info(f"Processing {ir_scenes} - {ir_degree_names[degree]} - {speaker_scenes} - speech number {speech_number} [{idx}/{len(speech_list)}]")
+                    logger.info(f"Processing {ir_scenes} - {ir_degree_names[degree]} - {speaker_scenes} - speech number {speech_number} [{iteration}/{len(speech_create)}]")
 
                     # load signal data
                     rate, speech = load_speech_signal(speech_path)
@@ -189,6 +197,8 @@ def create_speech_data(cfg: DictConfig) -> None:
 
                     # write wav data
                     write_speech_signal(output_path, rate, speech_rev)
+
+                    iteration = iteration +  1
 
 if __name__ == "__main__":
     create_speech_data()
