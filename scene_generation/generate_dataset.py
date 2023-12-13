@@ -167,7 +167,8 @@ def create_speech_data(cfg: DictConfig) -> None:
                 speech_path = Path(cfg.path.speech_dir) / speaker_scenes
                 speech_list = [x for x in speech_path.glob('**/*') if x.is_file()]
 
-                num_of_speech = 10
+                # 4 - iteration on speech data
+                num_of_speech = 20
                 speech_create = [f"{i:04d}" for i in range(1, num_of_speech+1)]
 
                 iteration = 1
