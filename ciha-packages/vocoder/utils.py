@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import math
+from scipy.signal import lfilter, lfilter_zi
+from scipy.fft import fft
 import matplotlib.pyplot as plt
 
 class gammatone_filterbank():
@@ -12,95 +14,95 @@ class gammatone_filterbank():
     '''
 
     # global parameter
-
+    L = 24.7
+    Q = 9.265
 
     # initiation function
-    def __init__(self):
+    def __init__(self, filter_order: int, frequency_sampling: int, center_frequencies: np.ndarray, verbose: bool) -> None:
         super(gammatone_filterbank, self).__init__()
 
         # filter parameter
+        self.order = filter_order
+        self.fs = frequency_sampling
+        self.cf = center_frequencies
+        self.filterbank_coefficient = np.zeros((len(self.cf),1), dtype="complex_")
+        self.filterbank_norm_factor = np.zeros((len(self.cf),1), dtype="complex_")
 
+        # obtain filter coeffiecient and normalization factor
+        self.filterbank_coefficient, self.filterbank_norm_factor  = self.create_filter()
 
-        # filter coefficient output
+        # show impulse response of filterbank
+        if verbose:
+            self.ir_plot()
 
-    def calculate_coefficient():
+    def create_filter(self: tuple) -> tuple:
+        # convert center frequencies from Hz to ERB scale
+        # equation no. 16 in Hohmann (2002)
+        freq_erb = [ self.Q * np.log10(1 + x / (self.L * self.Q)) for x in self.cf ]
+
+        # calculate filter coefficient and its normalization factor for each center frequencies
+        for i in range(len(self.cf)):
+            coef, nfactor = self.calculate_filter_params(freq_erb[i])
+            self.filterbank_coefficient[i] = coef
+            self.filterbank_norm_factor[i] = nfactor
+
+        return self.filterbank_coefficient, self.filterbank_norm_factor
+
+    def calculate_filter_params(self, freq: int) -> np.ndarray:
+        # equation no. 13 in Hohmann (2002)
+        erb_aud_filters = self.L + freq / self.Q
 
         # equation no. 14 in Hohmann (2002)
         a_gamma = (np.pi * math.factorial(2*self.order - 2)
             * pow(2, -(2*self.order - 2))
             / pow(math.factorial(self.order - 1),2))
-        b = erb / a_gamma
-        damping = np.exp(-2 * np.pi * b / frequency_sampling)
+        b = erb_aud_filters / a_gamma
+        damping = np.exp(-2 * np.pi * b / self.fs)
 
+        # equation no. 10 in Hohmann (2002)
+        beta = 2 * np.pi * freq / self.fs
 
         # equation no. 1 in Hohmann (2002)
         analog_coefficient = damping * np.exp(1j * beta)
-        coefficients = pow(number_of_sample, gamma - 1) * analog_coefficient
+        # coefficients = pow(number_of_sample, gamma - 1) * analog_coefficient
 
-        return coefficients
+        # section 2.4 in Hohmann (2002)
+        norm_factor = 2 * pow((1 - np.abs(analog_coefficient)), 4)
 
+        return analog_coefficient, norm_factor
 
-class gammatone_filter():
-    '''
-    This class used to generate gammatone filterbank, based on this following reference
-    [Hohmann 2002] : Frequency analysis and synthesis using a Gammatone filterbank, Acta Acustica (2002)
+    def ir_plot(self: tuple) -> None:
+        impulse = np.zeros((8191, 1))
+        impulse = np.insert(impulse, 0, 1)
 
-    '''
+        output = np.zeros((len(self.cf), len(impulse)), dtype="complex_")
 
-    # Global Parameter
-    L = 24.7                    # see eq. (17) in [Hohmann 2002]
-    Q = 9.265                   # see eq. (17) in [Hohmann 2002]
-
-    def __init__(self, gamma_order, frequency_sampling, center_frequencies, bandwidth_factor):
-        super(gammatone_filter, self).__init__()
-
-        # filter parameter
-        self.order = gamma_order
-        self.fs = frequency_sampling
-        self.cf = center_frequencies
-        self.bf = bandwidth_factor
-        self.norm_divisor = 1
-
-        # filter coefficient
-        self.filter, self.norm_factor = self.create_filter()
-
-    def create_filter(self):
-        '''
-        This function used to create array of Gammatone Filterbank coefficient and normalization factor
-        '''
-        gamma_filter = np.zeros((len(self.cf),1), dtype="complex_")
-        gamma_norm_factor = np.zeros((len(self.cf),1), dtype="complex_")
         for i in range(len(self.cf)):
-            cf = self.cf[i]
-            bf = self.bf[i]
+            b = self.filterbank_norm_factor[i]
+            a = self.filterbank_coefficient[i]
+            a = np.insert(a, 0, 1)
+            filter_state = lfilter_zi(b, a)
 
-            gamma_coef = self.calculate_coefficient(cf, bf)
-            norm_fac = 2 * pow((1 - np.abs(gamma_coef)), self.order)
+            for j in range(self.order):
+                filtered_impulse, new_state = lfilter(b, a, impulse, axis=-1, zi=filter_state)
+                output[i][:] = filtered_impulse
 
-            gamma_filter[i] = gamma_coef
-            gamma_norm_factor[i] = norm_fac
+                filter_state = new_state
 
-        return gamma_filter, gamma_norm_factor
-
-    def calculate_coefficient(self, cf_chan, bf_chan):
-        '''
-        this function used to calculate coefficient on each channel of Gammatone Filterbank
-        '''
-        erb_aud = self.L + (cf_chan / self.Q) * bf_chan             # see eq. (13) in [Hohmann 2002]
-
-        a_gamma = (np.pi * math.factorial(2*self.order - 2)         # see eq. (14), line 3 in [Hohmann 2002]
-            * pow(2, -(2*self.order - 2))
-            / pow(math.factorial(self.order - 1),2))
-
-        b = erb_aud / a_gamma                                       # see eq. (14), line 2 in [Hohmann 2002]
-
-        lambda_erb = np.exp(-2 * np.pi * b / self.fs)               # see eq. (14), line 1 in [Hohmann 2002]
-
-        beta = 2 * np.pi * cf_chan / self.fs                        # see eq. (10) in [Hohmann 2002]
-
-        coef = lambda_erb * np.exp(1j * beta)                       # see eq. (1), line 2 in [Hohmann 2002]
-
-        return coef
+        # plot the figure
+        freq = np.linspace(0, 8191, 8192) * self.fs / 8192
+        plt.figure()
+        for i in range(len(self.cf)):
+            freq_response = 20 * np.log(abs(fft(np.real(output[i]))))
+            plt.plot(freq, freq_response)
+        plt.xscale('log')
+        plt.show()
 
 if __name__ == "__main__":
-    gamma_filt = gammatone_filter(4, 48000, [100, 200, 300], [1, 1, 1])
+    gamma_filt = gammatone_filterbank(4,
+            16000,
+            [120, 235, 384, 579, 836, 1175, 1624, 2222, 3019, 4084, 5507, 7410],
+            True
+            )
+    # print(gamma_filt.filterbank_coefficient)
+    # print(gamma_filt.filterbank_norm_factor)
