@@ -107,12 +107,30 @@ class gammatone_filterbank():
         plt.xlim([0, 8000])
         plt.show()
 
-if __name__ == "__main__":
+    def process_filtering(self: tuple, input_signal: np.ndarray) -> np.ndarray:
+        len_signal = len(input_signal)
+        output = np.zeros((len(self.cf), len_signal), dtype="complex_")
+
+        for i in range(len(self.cf)):
+            impulse = input_signal
+
+            b = self.filterbank_norm_factor[i]
+            a = self.filterbank_coefficient[i]
+            a = np.insert(-a, 0, 1)
+
+            for j in range(self.order):
+                filtered_impulse = lfilter(b, a, impulse)
+                b = [1]
+                impulse = filtered_impulse
+
+            output[i][:] = filtered_impulse
+
+        return output
+
+# if __name__ == "__main__":
     # cf = [120, 235, 384, 579, 836, 1175, 1624, 2222, 3019, 4084, 5507, 7410]
-    gamma_filt = gammatone_filterbank(4,
-            16000,
-            [120, 235, 384, 579, 836, 1175, 1624, 2222, 3019, 4084, 5507, 7410],
-            True
-            )
-    # print(gamma_filt.filterbank_coefficient)
-    # print(gamma_filt.filterbank_norm_factor)
+    # gamma_filt = gammatone_filterbank(4,
+    #        16000,
+    #        [120, 235, 384, 579, 836, 1175, 1624, 2222, 3019, 4084, 5507, 7410],
+    #        True
+    #        )
