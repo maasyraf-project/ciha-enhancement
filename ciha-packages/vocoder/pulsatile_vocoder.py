@@ -137,6 +137,25 @@ class pulsatile_vocoder():
         return electrodogram
 
     def sampling_CIS(self, envelope):
+        # create output array
+        sampled_pulse = np.zeros(np.shape(envelope))
+
+        # definei intial parameter
+        pulse = np.ones(1, self.lenpulse)
+        n_samples = 1
+        pps_idx = 1
+        channel_shift_idx = 1
+
+        # calculate channel shift
+        if len(self.block_delay) > 1:
+            channel_shift = [np.sound((self.block_delay[idx] - self.lenpulse * self.nChan)/self.nChan) for idx in range(len(self.block_delay))]
+        else:
+            channel_shift = np.sound((self.block_delay[idx] - self.lenpulse * self.nChan)/self.nChan)
+
+        if self.nChan * self.lenpulse > np.min(self.block_delay):
+            print('Using this pps, number of channels, pulselength, and fs would result in parallel stimulation! Please adjust these three factors, so that the followind equation is satisfied, with x = [1,2,3,4,...,100]: ((x * M) + pulselength_samples)*pps*M/M = fs');
+
+
 
         return None
 
