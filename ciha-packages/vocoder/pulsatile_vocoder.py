@@ -52,10 +52,8 @@ class pulsatile_vocoder():
         self.pps = 800
         self.elec_method = params.electrode_selection_method
 
-        self.lenpulse = np.ceil(2 * self.pulse_length * self.ipg * self.fs)
+        self.lenpulse = np.ceil(2 * self.pulse_length + self.ipg) * self.fs
         self.block_delay = self.calculate_delay()
-
-        print(self.block_delay)
 
         # process the signal
         # (1) apply analysis filter
@@ -63,6 +61,10 @@ class pulsatile_vocoder():
 
         # (2) obtain envelope and fine structure
         self.env, self.fine = self.feature_extraction(self.output)
+
+        # (3) apply pulsatile sampling
+        self.electrodogram = self.method_selection(self.env, self.fine)
+        print("Done")
 
 
     def analysis_filter(self, input_signal: ndarray) -> np.ndarray:
@@ -129,10 +131,10 @@ class pulsatile_vocoder():
         return delay_block
 
     def method_selection(self, envelope, fine_structure):
-        if method == "CIS":
-            electrodogram = sampling_CIS(envelope)
-        elif method == "FSP":
-            electrodogram = sampling_FSP(envelope, fine_structure)
+        if self.vocoder_type == "CIS":
+            electrodogram = self.sampling_CIS(envelope)
+        elif self.vocoder_type == "FSP":
+            electrodogram = self.sampling_FSP(envelope, fine_structure)
 
         return electrodogram
 
@@ -148,16 +150,59 @@ class pulsatile_vocoder():
 
         # calculate channel shift
         if len(self.block_delay) > 1:
-            channel_shift = [np.sound((self.block_delay[idx] - self.lenpulse * self.nChan)/self.nChan) for idx in range(len(self.block_delay))]
+            channel_shift = [np.round((self.block_delay[idx] - self.lenpulse * self.nChan)/self.nChan) for idx in range(len(self.block_delay))]
         else:
-            channel_shift = np.sound((self.block_delay[idx] - self.lenpulse * self.nChan)/self.nChan)
+            channel_shift = np.round((self.block_delay - self.lenpulse * self.nChan)/self.nChan)
 
         if self.nChan * self.lenpulse > np.min(self.block_delay):
             print('Using this pps, number of channels, pulselength, and fs would result in parallel stimulation! Please adjust these three factors, so that the followind equation is satisfied, with x = [1,2,3,4,...,100]: ((x * M) + pulselength_samples)*pps*M/M = fs');
 
+        # conduct pulsatile sampling
+        length_signal = np.shape(envelope)[1]
 
+        while n_samples <= length_signal-1:
+            channel_order = self.sort_electrode(np.linspace(0, np.shape(envelope)[0]-1, np.shape(envelope)[0])).astype(np.int64)
 
+            for chan in range(self.nChan):
+                # stop before last sample
+                if n_samples > length_signal - self.lenpulse:
+                    break
+
+                # pulsatile sampling
+                if envelope[channel_order[chan]][n_samples] > 0:
+                    sampled_pulse[channel_order[chan]][n_samples : n_samples + self.lenpulse - 1] = np.multiply(envelope[channel_order[chan]][n_samples], pulse)
+
+                if envelope[channel_order[chan], n_samples] > 0 and chan < np.shape(envelope)[0]:
+                    # shift to the next channel
+                    n_samples = n_samples + self.lenpulse + channel_shift(channel_shift_idx)
+
+                    if channel_shift_idx == len(channel_shift_idx):
+                        channel_shift_idx = 0
+
+                    channel_shift_idx += 1
+
+                if n_samples == length_signal-1:
+                    n_samples += 1
+                    break
+
+            n_samples = n_samples + self.block_delay[pps_idx] - (nChan-1) * (self.lenpulse + channel_shift[channel_shift_idx])
+
+            if pps_idx == len(self.block_delay):
+                pps_idx == 0
+
+            pps_idx += 1
+
+        return sampled_pulse
+
+    def sampling_FSP(self, envelope, fine_structure):
         return None
+
+    def sort_electrode(self, channel_array: ndarray):
+        # select sorting method on electrde block stimulation
+        if self.elec_method == "sequential":
+            order = np.sort(channel_array)[::-1]
+
+        return order
 
     def plot_channel(self, input_signal: ndarray, title: str, xlabel: str, ylabel:str) -> None:
         fig, ax = plt.subplots(figsize=(8,8), nrows=12, ncols=1, sharey=True)
@@ -185,5 +230,5 @@ if __name__ == "__main__":
     # apply pulsatile vocoder
     pulsatile_params = vocoder_params()
     output_signal = pulsatile_vocoder(signal, pulsatile_params, "CIS")
-    print(np.shape(output_signal.env))
-    output_signal.plot_channel(output_signal.env, "Plot signal per channel", "Sample", "Amplitude")
+    #print(np.shape(output_signal.env))
+    #output_signal.plot_channel(output_signal.env, "Plot signal per channel", "Sample", "Amplitude")
