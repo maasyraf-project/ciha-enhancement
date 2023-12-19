@@ -20,7 +20,7 @@ class vocoder_params():
         self.number_of_channels = 12
         self.center_frequencies = [120, 235, 384, 579, 836, 1175, 1624, 2222, 3019, 4084, 5507, 7410]
         self.filterbank_order = 4
-        self.sampling_frequency = 16000
+        self.sampling_frequency = 48000
         self.weights = [0.98, 0.98, 0.98, 0.68, 0.68, 0.45, 0.45, 0.2, 0.2, 0.15, 0.15, 0.15]
         self.lp_frequency = 200
         self.pulse_length = 32e-6
@@ -52,7 +52,7 @@ class pulsatile_vocoder():
         self.pps = 800
         self.elec_method = params.electrode_selection_method
 
-        self.lenpulse = np.ceil(2 * self.pulse_length + self.ipg) * self.fs
+        self.lenpulse = np.ceil((2 * self.pulse_length + self.ipg) * self.fs)
         self.block_delay = self.calculate_delay()
 
         # process the signal
@@ -64,7 +64,6 @@ class pulsatile_vocoder():
 
         # (3) apply pulsatile sampling
         self.electrodogram = self.method_selection(self.env, self.fine)
-        print("Done")
 
 
     def analysis_filter(self, input_signal: ndarray) -> np.ndarray:
@@ -133,6 +132,7 @@ class pulsatile_vocoder():
     def method_selection(self, envelope, fine_structure):
         if self.vocoder_type == "CIS":
             electrodogram = self.sampling_CIS(envelope)
+            electrodogram = self.assert_sequential_stimulation(electrodogram)
         elif self.vocoder_type == "FSP":
             electrodogram = self.sampling_FSP(envelope, fine_structure)
 
@@ -144,9 +144,9 @@ class pulsatile_vocoder():
 
         # definei intial parameter
         pulse = np.ones(1, self.lenpulse)
-        n_samples = 1
-        pps_idx = 1
-        channel_shift_idx = 1
+        n_samples = 0
+        pps_idx = 0
+        channel_shift_idx = 0
 
         # calculate channel shift
         if len(self.block_delay) > 1:
@@ -170,29 +170,50 @@ class pulsatile_vocoder():
 
                 # pulsatile sampling
                 if envelope[channel_order[chan]][n_samples] > 0:
-                    sampled_pulse[channel_order[chan]][n_samples : n_samples + self.lenpulse - 1] = np.multiply(envelope[channel_order[chan]][n_samples], pulse)
+                    sampled_pulse[channel_order[chan]][n_samples : int(n_samples + self.lenpulse - 1)] = np.multiply(envelope[channel_order[chan]][n_samples], pulse)
 
-                if envelope[channel_order[chan], n_samples] > 0 and chan < np.shape(envelope)[0]:
+                if envelope[channel_order[chan]][n_samples] > 0 and chan < np.shape(envelope)[0]:
                     # shift to the next channel
-                    n_samples = n_samples + self.lenpulse + channel_shift(channel_shift_idx)
+                    n_samples = int(n_samples + self.lenpulse + channel_shift[channel_shift_idx])
 
-                    if channel_shift_idx == len(channel_shift_idx):
-                        channel_shift_idx = 0
+                    if np.size(channel_shift_idx) != 1:
+                        channel_shift_idx += 1
 
-                    channel_shift_idx += 1
+                    channel_shift_idx = 0
 
                 if n_samples == length_signal-1:
                     n_samples += 1
                     break
 
-            n_samples = n_samples + self.block_delay[pps_idx] - (nChan-1) * (self.lenpulse + channel_shift[channel_shift_idx])
+            n_samples = int(n_samples + self.block_delay[pps_idx] - (self.nChan-1) * (self.lenpulse + channel_shift[channel_shift_idx]))
 
-            if pps_idx == len(self.block_delay):
-                pps_idx == 0
+            if pps_idx != len(self.block_delay)-1:
+                pps_idx += 1
 
-            pps_idx += 1
+            pps_idx == 0
+
 
         return sampled_pulse
+
+    def assert_sequential_stimulation(self, electrodogram):
+        stimulus_pattern = np.zeros(np.shape(electrodogram))
+        stimulus_pattern[electrodogram > 0] = 1
+
+        number_of_stimulated_chan = np.sum(stimulus_pattern, 0)
+
+        if any(number_of_stimulated_chan > 1):
+            print("Warning, parallel electrode stimulation is detected! The higher amplitude will be preserved")
+
+        index = np.column_stack(np.where(electrodogram > 1))
+        for i in range(len(np.where(electrodogram[number_of_stimulated_chan >1]))):
+            segment = electrodogram[:][index[i][1]]
+            max_val = np.max(segment)
+            max_idx = np.argmax(segment)
+            segment[:] = 0
+            segment[max_idx] = max_val
+            electrodogram[:][index[i][1]] = segment
+
+        return electrodogram
 
     def sampling_FSP(self, envelope, fine_structure):
         return None
