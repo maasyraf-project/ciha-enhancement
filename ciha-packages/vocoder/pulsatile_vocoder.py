@@ -27,6 +27,12 @@ class vocoder_params():
         self.inter_pulse_gap = 2.1e-6
         self.electrode_selection_method = "sequential"
         self.pulse_per_second = 800
+        self.B = 0.0156
+        self.M = 1.5859
+        self.compression_coefficient = 340.83
+        self.TCL = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
+        self.MCL = [800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800]
+        self.volume_gain = 1
 
 class pulsatile_vocoder():
     '''
@@ -55,6 +61,14 @@ class pulsatile_vocoder():
         self.lenpulse = np.ceil((2 * self.pulse_length + self.ipg) * self.fs)
         self.block_delay = self.calculate_delay()
 
+        # compression and conversion parameter
+        self.B = params.B
+        self.M = params.M
+        self.alpha = params.compression_coefficient
+        self.MCL = params.MCL
+        self.TCL = params.TCL
+        self.volume = params.volume_gain
+
         # process the signal
         # (1) apply analysis filter
         self.output = self.analysis_filter(input_signal)
@@ -64,6 +78,12 @@ class pulsatile_vocoder():
 
         # (3) apply pulsatile sampling
         self.electrodogram = self.method_selection(self.env, self.fine)
+
+        # (4) apply compression on obtained electrodogram
+        self.electrodogram = self.compress(self.electrodogram)
+
+        # (5) convert electrodogram to electrical domain
+        self.electrodogram = self.convert_to_electrical(self.electrodogram)
 
 
     def analysis_filter(self, input_signal: ndarray) -> np.ndarray:
@@ -204,8 +224,9 @@ class pulsatile_vocoder():
         if any(number_of_stimulated_chan > 1):
             print("Warning, parallel electrode stimulation is detected! The higher amplitude will be preserved")
 
-        index = np.column_stack(np.where(electrodogram > 1))
-        for i in range(len(np.where(electrodogram[number_of_stimulated_chan >1]))):
+        index = np.column_stack(np.where(number_of_stimulated_chan > 1))
+
+        for i in range(len(electrodogram[1][number_of_stimulated_chan > 1])):
             segment = electrodogram[:][index[i][1]]
             max_val = np.max(segment)
             max_idx = np.argmax(segment)
@@ -224,6 +245,37 @@ class pulsatile_vocoder():
             order = np.sort(channel_array)[::-1]
 
         return order
+
+    def compress(self, input_electrodogram):
+        output_electrodogram = np.zeros(np.shape(input_electrodogram))
+
+        output_electrodogram[input_electrodogram < self.B] = 0
+
+        index = np.column_stack(np.where((input_electrodogram >= self.B) & (input_electrodogram < self.M)))
+
+        for idx in index:
+            chan = idx[0]
+            sample = idx[1]
+            output_electrodogram[chan][sample] = np.log(1 + self.alpha * ((input_electrodogram[chan][sample] - self.B) / (self.M - self.B))) / np.log(1 + self.alpha)
+
+        output_electrodogram[input_electrodogram >= self.M] = 1
+
+        return output_electrodogram
+
+    def convert_to_electrical(self, input_electrodogram):
+        output_electrodogram = np.zeros(np.shape(input_electrodogram))
+
+        for chan in range(np.shape(input_electrodogram)[0]):
+            for idx in range(np.shape(input_electrodogram)[1]):
+                output_electrodogram[chan][idx] = (input_electrodogram[chan][idx] * self.volume * (self.MCL[chan] - self.TCL[chan])) + self.TCL[chan]
+
+        for i in range(np.shape(input_electrodogram)[1]):
+            idx = [input_electrodogram[:,i] == self.TCL]
+            for j, bool in enumerate(idx):
+                if bool[j] == True:
+                    output_electrodogram[j, i] = 0
+
+        return output_electrodogram
 
     def plot_channel(self, input_signal: ndarray, title: str, xlabel: str, ylabel:str) -> None:
         fig, ax = plt.subplots(figsize=(8,8), nrows=12, ncols=1, sharey=True)
