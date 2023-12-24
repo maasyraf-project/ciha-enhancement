@@ -85,6 +85,9 @@ class pulsatile_vocoder():
         # (5) convert electrodogram to electrical domain
         self.electrodogram = self.convert_to_electrical(self.electrodogram)
 
+        # (6) invers the electrical domain signal into acoutical, dan decompress the signal
+        self.auralized_signal = self.convert_to_acoustic(self.electrodogram)
+        self.auralized_signal = self.decompress(self.auralized_signal)
 
     def analysis_filter(self, input_signal: ndarray) -> np.ndarray:
         '''
@@ -262,6 +265,16 @@ class pulsatile_vocoder():
 
         return output_electrodogram
 
+    def decompress(self, input_electrodogram):
+        output_electrodogram = np.zeros(np.shape(input_electrodogram))
+
+        for chan in range(np.shape(input_electrodogram)[0]):
+            for sample in range(np.shape(input_electrodogram)[1]):
+                output_electrodogram[chan][sample] = (np.exp(np.log(1 + self.alpha) * (input_electrodogram[chan][sample])) - 1) / self.alpha * (self.M - self.B) + self.B
+
+        output_electrodogram[input_electrodogram == 0] = 0
+        return output_electrodogram
+
     def convert_to_electrical(self, input_electrodogram):
         output_electrodogram = np.zeros(np.shape(input_electrodogram))
 
@@ -274,6 +287,26 @@ class pulsatile_vocoder():
             for j, bool in enumerate(idx):
                 if bool[j] == True:
                     output_electrodogram[j, i] = 0
+
+        return output_electrodogram
+
+    def convert_to_acoustic(self, input_electrodogram):
+        output_electrodogram = np.zeros(np.shape(input_electrodogram))
+
+        for chan in range(np.shape(input_electrodogram)[0]):
+            for idx in range(np.shape(input_electrodogram)[1]):
+                output_electrodogram[chan][idx] = input_electrodogram[chan][idx] - self.TCL[chan]
+
+        for i in range(np.shape(input_electrodogram)[1]):
+            idx = [input_electrodogram[:,i] == np.multiply(-1, self.TCL)]
+            for j, bool in enumerate(idx):
+                if bool[j] == True:
+                    # prevent overshoot
+                    output_electrodogram[j, i] = 0
+
+        for chan in range(np.shape(input_electrodogram)[0]):
+            for idx in range(np.shape(input_electrodogram)[1]):
+                output_electrodogram[chan][idx] = output_electrodogram[chan][idx]  / (self.volume * (self.MCL[chan] - self.TCL[chan]))
 
         return output_electrodogram
 
