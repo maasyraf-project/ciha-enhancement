@@ -33,6 +33,9 @@ class vocoder_params():
         self.TCL = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
         self.MCL = [800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800, 800]
         self.volume_gain = 1
+        self.n_chan_interact = 5
+        self.electrode_spacing = 0.0024
+        self.decay_coef = 0.0036
 
 class pulsatile_vocoder():
     '''
@@ -69,6 +72,11 @@ class pulsatile_vocoder():
         self.TCL = params.TCL
         self.volume = params.volume_gain
 
+        # auralization parameter
+        self.m = params.n_chan_interact
+        self.decay = params.decay_coef
+        self.d = params.electrode_spacing
+
         # process the signal
         # (1) apply analysis filter
         self.output = self.analysis_filter(input_signal)
@@ -88,6 +96,9 @@ class pulsatile_vocoder():
         # (6) invers the electrical domain signal into acoutical, dan decompress the signal
         self.auralized_signal = self.convert_to_acoustic(self.electrodogram)
         self.auralized_signal = self.decompress(self.auralized_signal)
+
+        # (7) calculate channel interaction and current spreading
+        self.auralized_signal = self.channel_interaction(self.auralized_signal)
 
     def analysis_filter(self, input_signal: ndarray) -> np.ndarray:
         '''
@@ -307,6 +318,22 @@ class pulsatile_vocoder():
         for chan in range(np.shape(input_electrodogram)[0]):
             for idx in range(np.shape(input_electrodogram)[1]):
                 output_electrodogram[chan][idx] = output_electrodogram[chan][idx]  / (self.volume * (self.MCL[chan] - self.TCL[chan]))
+
+        return output_electrodogram
+
+    def channel_interaction(self, input_electrodogram):
+        weight = np.eye(self.nChan) * 0.5
+        coef_right = [np.exp(-i * self.d/self.decay) for i in range(self.m)]
+        coef_left = coef_right[::-1]
+
+        for i in range(np.shape(weight)[0]):
+            print(i)
+            weight[i, i+1:self.m+i+1] = coef_right
+
+        weight = weight[0:self.nChan, 0:self.nChan]
+        weight = np.triu(weight, -1).T + weight
+
+        prtin(weight)
 
         return output_electrodogram
 
