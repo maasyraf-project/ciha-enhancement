@@ -322,18 +322,32 @@ class pulsatile_vocoder():
         return output_electrodogram
 
     def channel_interaction(self, input_electrodogram):
-        weight = np.eye(self.nChan) * 0.5
+        weight = np.eye(self.nChan, self.nChan) * 0.5
         coef_right = [np.exp(-i * self.d/self.decay) for i in range(self.m)]
         coef_left = coef_right[::-1]
 
         for i in range(np.shape(weight)[0]):
-            print(i)
-            weight[i, i+1:self.m+i+1] = coef_right
+            if self.m+i <= np.shape(weight)[0]:
+                weight[i, i:self.m+i] = coef_right
+            elif i == np.shape(weight)[0]-1:
+                weight[i, i:i] = coef_right[0]
+            else:
+                len_coef = self.nChan - (i + 1)
+                coef = coef_right[0:len_coef-1]
+                weight[i, i:i+len_coef-1] = coef
 
         weight = weight[0:self.nChan, 0:self.nChan]
+
         weight = np.triu(weight, -1).T + weight
 
-        prtin(weight)
+        # apply interaction
+        idx_pulse = np.abs(input_electrodogram) > 0
+        output_electrodogram = np.zeros(np.shape(input_electrodogram))
+
+        for i in range(np.shape(input_electrodogram)[0]):
+            idx_active_channel = idx_pulse[i, :] > 0
+            interaction = np.outer(input_electrodogram[i, idx_active_channel] , weight[i, :].T)
+            output_electrodogram[:, idx_active_channel] = output_electrodogram[:, idx_active_channel] + interaction.T
 
         return output_electrodogram
 
