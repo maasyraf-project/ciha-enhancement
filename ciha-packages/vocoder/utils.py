@@ -108,11 +108,21 @@ class gammatone_filterbank():
         plt.show()
 
     def process_filtering(self: tuple, input_signal: np.ndarray) -> np.ndarray:
-        len_signal = len(input_signal)
+
+        if input_signal.ndim == 1:
+            len_signal = len(input_signal)
+            input_signal = np.expand_dims(input_signal, axis=0)
+
+        if np.shape(input_signal)[0] == 1:
+            idx_input = np.zeros((len(self.cf),), dtype=int)
+        elif np.shape(input_signal)[0] == len(self.cf):
+            idx_input = np.linspace(0, 11, num=12).astype(int)
+            len_signal = np.shape(input_signal)[1]
+
         output = np.zeros((len(self.cf), len_signal), dtype="complex_")
 
         for i in range(len(self.cf)):
-            impulse = input_signal
+            impulse = input_signal[idx_input[i], :]
 
             b = self.filterbank_norm_factor[i]
             a = self.filterbank_coefficient[i]

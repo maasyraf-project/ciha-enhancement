@@ -100,6 +100,28 @@ class pulsatile_vocoder():
         # (7) calculate channel interaction and current spreading
         self.auralized_signal = self.channel_interaction(self.auralized_signal)
 
+        # (8) synthesis using Gammatone filterbank
+        self.vocoded_signal = self.synthesis_filter(self.auralized_signal)
+
+    def synthesis_filter(self, input_signal: ndarray) -> np.ndarray:
+        '''
+        The function has objective to auralized signal and apply Gammatone filterbank to convert multi-channel signal into single-channel signal
+        '''
+        # create gammatone filterbank
+        filterbank = gammatone_filterbank(
+            self.order,
+            self.fs,
+            self.cf,
+            False)
+
+        # process the signal
+        output  = filterbank.process_filtering(input_signal)
+
+        # set RMS of signal on each channel
+
+
+        return output
+
     def analysis_filter(self, input_signal: ndarray) -> np.ndarray:
         '''
         This function used for filter signal into 12-channels of subband signals using Gammatone filterbank
@@ -124,6 +146,8 @@ class pulsatile_vocoder():
         env = [np.sqrt(np.multiply(self.weights[chan], pow(np.real(input_signal[chan][:]),2) +
             pow(np.imag(input_signal[chan][:]), 2)))
             for chan in range(np.shape(input_signal)[0])]
+
+        self.rms_per_channel = np.sqrt(np.mean(np.multiply(env, np.conjugate(env)), axis=1))
 
         env = self.lp_filter(env)
 
