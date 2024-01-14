@@ -95,7 +95,6 @@ class gammatone_filterbank():
 
             output[i][:] = filtered_impulse
 
-
         # plot the figure
         freq = np.arange(len(impulse)) * self.fs / len(impulse)
         plt.figure()
@@ -106,6 +105,39 @@ class gammatone_filterbank():
         plt.ylim([-50, 0])
         plt.xlim([0, 8000])
         plt.show()
+
+    def create_synthesizer(self:tuple, delay:int) -> None:
+        delay_samples = np.round(delay * self.fs)
+
+        self.create_delay(delay_samples)
+
+    def create_delay(self:tuple, delay_samples:int) -> None:
+        # cerate impulse
+        impulse = np.zeros((delay_samples+2,))
+        impulse[0] = 1
+
+        # create impulse response
+        impulse_response = self.process_filtering(impulse)
+        impulse_response = np.abs(impulse_response)
+
+        # identify maximum values from impulse response array
+        max_ir_idx = np.argmax(impulse_response, axis=0)
+        max_ir_idx = max_ir_idx - (max_ir_idx > delay_samples + 1)
+
+        self.delay = delay_samples + 1 - max_ir_idx
+
+        self.delay_memory = np.zeros((len(self.cf), np.max(self.delay)))
+
+        # calculate slopes
+        slopes = np.zeros((len(self.cf),))
+        for chan in range(len(self.cf)):
+            max_chan_idx = max_ir_idx[chan]
+            slopes[chan] = (impulse_response[chan, max_chan_idx+1] - impulse_response[chan, max_chan_idx-1])
+
+        slopes = slopes / np.abs(slopes)
+
+        self.delay_phase_factor = [1j / slopes[i] for i in range(len(slopes))]
+
 
     def process_filtering(self: tuple, input_signal: np.ndarray) -> np.ndarray:
 

@@ -121,7 +121,7 @@ class pulsatile_vocoder():
         output = self.adjust_rms(output, method = 'linear')
 
         # create synthesizer filterbank
-
+        synthesizer = filterbank.create_synthesizer(1)
 
 
         return output
