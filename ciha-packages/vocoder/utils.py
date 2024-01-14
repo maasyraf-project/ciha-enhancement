@@ -16,6 +16,8 @@ class gammatone_filterbank():
     # global parameter
     L = 24.7
     Q = 9.265
+    gain_calc = 1
+    iteration = 4
 
     # initiation function
     def __init__(self, filter_order: int, frequency_sampling: int, center_frequencies: np.ndarray, verbose: bool) -> None:
@@ -107,9 +109,10 @@ class gammatone_filterbank():
         plt.show()
 
     def create_synthesizer(self:tuple, delay:int) -> None:
-        delay_samples = np.round(delay * self.fs)
+        delay_samples = int(np.round(delay * self.fs))
 
         self.create_delay(delay_samples)
+        self.create_mixer()
 
     def create_delay(self:tuple, delay_samples:int) -> None:
         # cerate impulse
@@ -126,7 +129,7 @@ class gammatone_filterbank():
 
         self.delay = delay_samples + 1 - max_ir_idx
 
-        self.delay_memory = np.zeros((len(self.cf), np.max(self.delay)))
+        self.delay_memory = np.zeros((len(self.cf), np.max(self.delay)), dtype="complex")
 
         # calculate slopes
         slopes = np.zeros((len(self.cf),))
@@ -138,6 +141,65 @@ class gammatone_filterbank():
 
         self.delay_phase_factor = [1j / slopes[i] for i in range(len(slopes))]
 
+    def create_mixer(self:tuple) -> None:
+        # create ERB filter
+        ERB = self.L + self.cf[0] / self.Q
+        a_gamma = (np.pi * math.factorial(2*self.order - 2)
+            * pow(2, -(2*self.order - 2)))
+        c_gamma = 2 * np.sqrt(pow(2, 1/self.order)-1)
+        bandwidth = c_gamma / a_gamma * ERB
+        low_cutoff_freq = self.cf[0] - np.floor(1*bandwidth/2)
+
+        samples = pow(2, np.ceil(np.log2(self.gain_calc * self.fs / low_cutoff_freq))).astype("int")
+
+        # create impulse
+        impulse = np.zeros((samples,))
+        impulse[0] = 1
+
+        # spectrum analysis
+        spec_idx = [int(np.round(self.cf[x]) * samples / self.fs) for x in range(len(self.cf))]
+        self.mixer_gain = np.ones((len(self.cf,)))
+
+        impulse_response = self.process_filtering(impulse)
+        impulse_response = self.process_delay(impulse_response)
+
+        # obtain spectrum response
+        ir_spectrum = [np.fft.fft(np.real(impulse_response[x])) for x in range(np.shape(impulse_response)[0])]
+
+        # calculate mixer gain
+        for i in range(self.iteration):
+            true_spectrum = [ir_spectrum[x][spec_idx[x]] for x in range(len(self.cf))]
+            true_spectrum = np.dot(true_spectrum, self.mixer_gain)
+
+            self.mixer_gain = self.mixer_gain / (np.abs(true_spectrum))
+
+    def process_delay(self:tuple, input:np.ndarray) -> np.ndarray:
+        output = np.zeros((len(self.cf), np.shape(input)[1]), dtype="complex")
+
+        for chan in range(len(self.cf)):
+            if self.delay[chan] == 0:
+                output[chan, :] = np.real(input[chan, :]) * self.delay_phase_factor[chan]
+            else:
+                tmp_out = np.concatenate((self.delay_memory[chan][0:self.delay[chan]-1], np.real(input[chan][:]) * self.delay_phase_factor[chan]))
+                self.delay_memory[chan, 0:self.delay[chan]-1] = tmp_out[np.shape(input)[1]:len(tmp_out)]
+                output[chan,:] = tmp_out[0:np.shape(input)[1]]
+
+        return output
+
+    def process_mixer(self:tuple, input:np.ndarray) -> np.ndarray:
+        # apply mixer gain into input
+        output = input * self.mixer_gain[:, None]
+
+        return output
+
+    def process_synthesis(self:tuple, input: np.ndarray) -> np.ndarray:
+        # delay process
+        output = self.process_delay(input)
+
+        # mixing process
+        output = self.process_mixer(output)
+
+        return output
 
     def process_filtering(self: tuple, input_signal: np.ndarray) -> np.ndarray:
 
