@@ -115,10 +115,32 @@ class pulsatile_vocoder():
             False)
 
         # process the signal
-        output  = filterbank.process_filtering(input_signal)
+        output = filterbank.process_filtering(input_signal)
 
         # set RMS of signal on each channel
+        output = self.adjust_rms(output, method = 'linear')
 
+        # create synthesizer filterbank
+
+
+
+        return output
+
+    def adjust_rms(self, input_signal: ndarray, method: str) -> np.ndarray:
+        # define rms approach
+        if method == 'linear':
+            rms_factor = self.rms_per_channel
+        elif method == 'dB':
+            rms_factor = [pow(10, x/20) for x in self.rms_per_channel]
+
+        # calculate current rms of input signal
+        rms_input = np.real([np.sqrt(np.mean(np.dot(input_signal[x, :], np.conjugate(input_signal[x, :])))) for x in range(np.shape(input_signal)[0])])
+
+        # calcualte linear gain, ratio between current and target RMS
+        gain = rms_factor / rms_input
+
+        # calcualte output
+        output = [input_signal[x,:] * gain[x] for x in range(np.shape(input_signal)[0])]
 
         return output
 
