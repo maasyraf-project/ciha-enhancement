@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import math
 from scipy.signal import lfilter, lfilter_zi, butter
+from scipy.io import wavfile
 from scipy.fft import fft
 import matplotlib.pyplot as plt
 from utils import gammatone_filterbank
@@ -102,6 +103,8 @@ class pulsatile_vocoder():
 
         # (8) synthesis using Gammatone filterbank
         self.vocoded_signal = self.synthesis_filter(self.auralized_signal)
+
+        return self.vocoded_signal
 
     def synthesis_filter(self, input_signal: ndarray) -> np.ndarray:
         '''
@@ -422,7 +425,8 @@ class pulsatile_vocoder():
 
 if __name__ == "__main__":
     # define input signal
-    signal = np.random.normal(0, 0.5, 80000)
+    rate, signal = wavfile.read("example.wav")
+    print(rate)
 
     # apply pulsatile vocoder
     pulsatile_params = vocoder_params()
