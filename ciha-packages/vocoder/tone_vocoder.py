@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.matlib import repmat
 import math
-from scipy.signal import lfilter, lfilter_zi, butter
+from scipy.signal import lfilter, lfilter_zi, butter, filtfilt
 from scipy.io import wavfile
 from scipy.fft import fft
 import matplotlib.pyplot as plt
@@ -18,10 +18,11 @@ class vocoder_params():
         super(vocoder_params, self).__init__()
 
         # initiation of vocoder parameter
-        self.number_of_channels = 2
+        self.number_of_channels = 5
         self.center_frequencies = [120, 235, 384, 579, 836, 1175, 1624, 2222, 3019, 4084, 5507, 7410]
         self.sampling_frequency = 48000
         self.pre_emphasis_coef = 0.9378
+        self.cutoff_envelope_filter = 160
 
 
 class tone_vocoder():
@@ -36,15 +37,13 @@ class tone_vocoder():
         self.fs = params.sampling_frequency
         self.cf = params.center_frequencies
         self.pre_emphasis_coef = params.pre_emphasis_coef
+        self.cutoff_env = params.cutoff_envelope_filter
 
         # (1) pre-emphasis stage
         self.output = self.pre_emphasis_filter(input_signal)
 
         # (2) apply filterbank on signal
-        self.output = self.decompose(self.output)
-
-        print("process done")
-
+        self.output = self.vocode(self.output)
 
     def pre_emphasis_filter(self:tuple, input:np.ndarray) -> np.ndarray:
         # apply pre-emphasis filter
@@ -52,9 +51,38 @@ class tone_vocoder():
 
         return output
 
-    def decompose(self:tuple, input:np.ndarray) -> np.ndarray:
+    def vocode(self:tuple, input:np.ndarray) -> np.ndarray:
         # create filterbank
-        filterbank = self.create_filterbank(self.nchan)
+        coef = self.create_filterbank(self.nchan)
+
+        # create low pass filter to extract envelope on each channel
+        b_env, a_env = butter(2, self.cutoff_env/(self.fs/2), "low")
+
+        # create env and output array
+        env = np.zeros((self.nchan, np.shape(input)[0]))
+        vocoded = np.zeros(np.shape(input))
+
+        for i in range(self.nchan):
+            b, a = butter(4, coef[i,:], "bandpass")
+
+            # apply filter on each channel
+            output = filtfilt(b, a, input)
+
+            # apply half-wave rectification
+            output[output<0] = 0
+
+            # apply low pass filter to obtain envelope
+            env[i,:] = lfilter(b_env, a_env, output)
+
+            # create tone mdulator
+            f = np.exp(np.mean(np.log(coef[i,:]))) * (self.fs/2)
+            tone = np.sin(2*np.pi*(f/self.fs)*np.arange(np.shape(env)[1]))
+            voc = np.dot(env, tone)
+
+            # add to output
+            output =+ voc
+
+        return env, vocoded
 
     def create_filterbank(self:tuple, n_channels):
         # calculate filter coefficient
@@ -64,6 +92,15 @@ class tone_vocoder():
         elif self.nchan == 2:
             Wn = repmat([[792], [3392]], 1, 2)
             Bw = np.multiply(0.5, [[-984, 984], [-4215, 4215]]) / (self.fs/2)
+        elif self.nchan == 3:
+            Wn = repmat([[545], [1438], [3793]], 1, 2)
+            Bw = np.multiply(0.5, [[-491, 491], [-1295, 1295], [-3414, 3414]]) / (self.fs/2)
+        elif self.nchan == 4:
+            Wn = repmat([[460], [953], [1971], [4078]], 1, 2)
+            Bw = np.multiply(0.5, [[-321, 321], [-664,664], [-1373, 1373], [-2842, 2842]]) / (self.fs/2)
+        elif self.nchan == 5:
+            Wn = repmat([[418], [748], [1339], [2396], [4287]], 1, 2)
+            Bw = np.multiply(0.5, [[-237, 237], [-423, 423], [-758, 758], [-1356, 1356], [-2426, 2426]]) / (self.fs/2)
 
         Wn = Wn / (self.fs/2)
         Bw = Bw / (self.fs/2)
@@ -72,7 +109,7 @@ class tone_vocoder():
         Wn[Wn>1] = 0.99
         Wn[Wn<0] = 0.01
 
-        return filterbank
+        return Wn
 
 
 if __name__ == "__main__":
